@@ -1,13 +1,38 @@
 ﻿#NoEnv
-SetWorkingDir, %A_ScriptDir%  ; 设置工作目录为当前脚本所在目录
+SetWorkingDir, %A_ScriptDir%
+Process, Priority,, High
 
-AutoHotkeyPath := "C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe"  ; 指定 AutoHotkey 可执行文件路径
+AutoHotkeyPath := "C:\Program Files\AutoHotkey\v1.1.37.02\AutoHotkeyU64.exe"
+DetectHiddenWindows, On  ; 启用检测隐藏窗口
 
-Loop, %A_ScriptDir%\*.ahk  ; 遍历当前文件夹的所有 AHK 文件
+Loop, %A_ScriptDir%\*.ahk
 {
-    if (A_LoopFileName != A_ScriptName)  ; 避免重复启动自身
+    if (A_LoopFileName = A_ScriptName)
+        continue
+    
+    scriptPath := A_LoopFileFullPath
+    
+    ; 精确查找旧进程
+    WinGet, ahkIDs, List, % "ahk_class AutoHotkey ahk_exe AutoHotkeyU64.exe"
+    Loop, %ahkIDs%
     {
-        Run, "%AutoHotkeyPath%" "%A_LoopFileFullPath%"  ; 用指定的 AutoHotkey 运行 AHK 脚本
+        hwnd := ahkIDs%A_Index%
+        WinGetTitle, winTitle, ahk_id %hwnd%
+        if InStr(winTitle, scriptPath)
+        {
+            WinGet, pid, PID, ahk_id %hwnd%
+            Process, Close, %pid%
+            WinWaitClose, ahk_id %hwnd%,, 1
+        }
     }
+    
+    ; 强制启动新实例
+    Run, "%AutoHotkeyPath%" /force "%scriptPath%",, UseErrorLevel
+    if ErrorLevel
+        failedList .= A_LoopFileName "`n"
 }
-MsgBox, 所有 AHK 脚本已启动！
+
+if failedList
+    MsgBox, 以下脚本启动失败：`n%failedList%
+else
+    MsgBox, 所有脚本已启动完成！
